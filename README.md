@@ -12,7 +12,7 @@
 
 API 内存160MiB/CPU1；浏览器容器内存1GiB/CPU2/最多384进程。最多4个用户同时持有各自独立 Chromium 进程、上下文和 Cookie；同一用户操作串行，冲突返回409。空闲120秒销毁，最长900秒销毁，扫描间隔15秒；浏览器按需启动，重启后旧 session_id 无效。修改 Compose 环境变量可调整上限。单次操作最多30秒，超过容量返回429和 Retry-After。
 
-浏览器只有内部网络，唯一外网路径是 Go 校验代理再经 NAS 7890。每次连接解析所有 DNS 地址、禁止内网/保留地址与 VPS 管理地址，并以校验后的固定 IP 建立代理隧道，防止重定向和 DNS 重绑定访问内网。页面不持有 API Key。仅允许 HTTP(S) 80/443 的 GET/HEAD，支持搜索与公开网页阅读；不提供登录、支付、提交修改、任意脚本、下载或绕过验证码能力。系统 Chromium 使用容器隔离（非 root、去除 capabilities、只读文件系统），不对外暴露原始浏览器控制协议。
+浏览器只有内部网络，唯一外网路径是 Go 校验代理再经 NAS 7890。每次连接解析所有 DNS 地址、禁止内网/保留地址与 VPS 管理地址，并以校验后的固定 IP 建立代理隧道，防止重定向和 DNS 重绑定访问内网。页面不持有 API Key。仅允许 HTTP(S) 80/443 的 GET/HEAD，支持搜索与公开网页阅读；不提供登录、支付、提交修改、任意脚本、下载或绕过验证码能力。系统 Chromium 启用自身沙箱与容器隔离（非 root、去除 capabilities、只读文件系统，使用 Playwright 提供的 seccomp 配置允许创建用户命名空间），不对外暴露原始浏览器控制协议。
 
 ## 认证与用户隔离
 
@@ -91,3 +91,5 @@ curl "$WEB_TOOLS_URL/v1/browser/actions" \
 ## 验证
 
 `go vet ./... && go test -race ./...`；`cd browser && npm ci && npm test`。测试涵盖中文跑题回归、来源回退/超时、年份和时间过滤、DNS/代理SSRF防护、用户会话隔离、并发容量、闲置与最大时长清理。
+
+`browser/seccomp_profile.json` 来自 [Microsoft Playwright](https://github.com/microsoft/playwright/blob/main/utils/docker/seccomp_profile.json)，使用 Apache-2.0 许可，许可证见 `browser/PLAYWRIGHT_LICENSE`。

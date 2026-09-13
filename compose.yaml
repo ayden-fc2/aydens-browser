@@ -41,7 +41,7 @@ services:
     restart: unless-stopped
     read_only: true
     cap_drop: [ALL]
-    security_opt: [no-new-privileges:true]
+    security_opt: [no-new-privileges:true, "seccomp=./browser/seccomp_profile.json"]
     mem_limit: 1024m
     cpus: 2
     pids_limit: 384
