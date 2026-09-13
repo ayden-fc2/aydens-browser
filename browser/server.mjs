@@ -25,6 +25,11 @@ const sessions=new Sessions({max:number('BROWSER_MAX_SESSIONS',4,1,8),idleMs:num
     return{browser,context,page,blockedCount:()=>blocked};
   }catch(e){await browser.close();throw e;}
 }});
+// Readiness must prove that Chromium can really launch under the container's
+// sandbox/read-only configuration, not merely that Node can answer HTTP.
+const ready=await sessions.create();
+try{await ready.page.setContent('<title>Browser ready</title>');if(await ready.page.title()!=='Browser ready')throw new Error('Chromium readiness failed');}
+finally{await ready.browser.close();}
 const sweep=setInterval(()=>sessions.sweep().catch(()=>{}),15000);sweep.unref();
 const authorized=req=>{const actual=Buffer.from(req.headers.authorization||''),wanted=Buffer.from(`Bearer ${token}`);return actual.length===wanted.length&&timingSafeEqual(actual,wanted);};
 const send=(res,status,body)=>{res.writeHead(status,{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store'});res.end(JSON.stringify(body));};
