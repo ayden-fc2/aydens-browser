@@ -92,4 +92,4 @@ curl "$WEB_TOOLS_URL/v1/browser/actions" \
 
 `go vet ./... && go test -race ./...`；`cd browser && npm ci && npm test`。测试涵盖中文跑题回归、来源回退/超时、年份和时间过滤、DNS/代理SSRF防护、用户会话隔离、并发容量、闲置与最大时长清理。
 
-`browser/seccomp_profile.json` 来自 [Microsoft Playwright](https://github.com/microsoft/playwright/blob/main/utils/docker/seccomp_profile.json)，使用 Apache-2.0 许可，许可证见 `browser/PLAYWRIGHT_LICENSE`。
+`browser/seccomp_profile.json` 来自 [Microsoft Playwright](https://github.com/microsoft/playwright/blob/main/utils/docker/seccomp_profile.json)，增加了 Chromium 用户命名空间沙箱所需的 chroot 系统调用许可（仍保持 cap_drop: ALL），使用 Apache-2.0 许可，许可证见 `browser/PLAYWRIGHT_LICENSE`。

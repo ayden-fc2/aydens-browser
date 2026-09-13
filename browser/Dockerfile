@@ -7,7 +7,7 @@ ENV NODE_ENV=production CHROMIUM_PATH=/usr/bin/chromium
 WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev --ignore-scripts --registry=https://registry.npmmirror.com && npm cache clean --force
-COPY server.mjs web.mjs sessions.mjs ./
+COPY server.mjs web.mjs sessions.mjs seccomp_profile.json PLAYWRIGHT_LICENSE ./
 USER node
 EXPOSE 8080
 CMD ["node", "server.mjs"]
