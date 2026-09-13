@@ -34,7 +34,7 @@ export function extractPage(generation) {
     if(elements.length>=60)break;
     const rect=el.getBoundingClientRect();if(!rect.width||!rect.height||el.disabled||['hidden','password','file'].includes(el.type))continue;
     const ref=`r${generation}-${elements.length}`;el.setAttribute('data-aydens-ref',ref);
-    elements.push({ref,tag:el.tagName.toLowerCase(),type:el.type||undefined,label:(el.getAttribute('aria-label')||el.innerText||el.placeholder||el.name||'').trim().slice(0,120),url:el.tagName==='A'?el.href:undefined});
+    elements.push({ref,tag:el.tagName.toLowerCase(),type:el.type||undefined,value:['INPUT','TEXTAREA','SELECT'].includes(el.tagName)?el.value.slice(0,1000):undefined,label:(el.getAttribute('aria-label')||el.innerText||el.placeholder||el.name||'').trim().slice(0,120),url:el.tagName==='A'?el.href:undefined});
   }
   return{title,text:text.slice(0,60000),truncated:text.length>60000,links,elements,published_at};
 }
