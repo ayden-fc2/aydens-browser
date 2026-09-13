@@ -49,6 +49,8 @@ services:
     tmpfs: ["/tmp:size=256m,mode=1777"]
     environment:
       WEB_TOOLS_TOKEN_FILE: /run/secrets/web_tools_token
+      XDG_CONFIG_HOME: /tmp/chromium-config
+      XDG_CACHE_HOME: /tmp/chromium-cache
       BROWSER_PROXY_URL: http://aydens-browser-egress:8081
       BROWSER_MAX_SESSIONS: 4
       BROWSER_IDLE_SECONDS: 120

@@ -39,9 +39,10 @@ const server=http.createServer(async(req,res)=>{
     if(!validateInput(input))throw new BrowserError(400,'Invalid action parameters; see the API documentation');
     if(!input.session_id&&!['open','search'].includes(input.action)&&!sessions.users.has(input.user_id))throw new BrowserError(404,'Open a page or search to create a browser session first');
     session=await sessions.acquire(input.user_id,input.session_id);
+    if(res.destroyed){await sessions.close(session);throw new BrowserError(499,'Client disconnected');}
     const stop=()=>sessions.close(session).catch(()=>{});
     res.once('close',()=>{if(!res.writableEnded)stop();});
-    deadline=setTimeout(stop,Math.max(1,Math.min(30000,session.created+sessions.ttlMs-Date.now())));
+    deadline=setTimeout(stop,Math.max(1,Math.min(30000-(Date.now()-started),session.created+sessions.ttlMs-Date.now())));
     const page=session.page;
     if(input.action==='close'){await sessions.close(session);result={session_id:session.id,status:'closed'};}
     else{
