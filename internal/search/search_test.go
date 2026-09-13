@@ -13,11 +13,15 @@ import (
 
 func TestReportedChineseQueryRegression(t *testing.T) {
 	q := "2026年国庆假期 热门旅游目的地 推荐"
-	for _, title := range []string{"华硕 Z170 PRO GAMING 主板全面详测", "在线秒表2026", "中华人民共和国国庆节 假期安排", "2026日历", "春节旅游目的地 超长假期国庆预订", "端午国内旅游推荐 假期目的地"} {
+	for _, title := range []string{"华硕 Z170 PRO GAMING 主板全面详测", "在线秒表2026", "中华人民共和国国庆节 假期安排", "2026日历", "端午国内旅游推荐 假期目的地"} {
 		if score := relevance(q, SearchResult{Title: title}); score != 0 {
 			t.Errorf("accepted unrelated %q: %d", title, score)
 		}
 	}
+	if relevance(q, SearchResult{Title: "春节旅游目的地 超长假期消费", Snippet: "春节旅游目的地...相关报道：国庆旅游预订"}) != 0 {
+		t.Fatal("RSS related-story text hid a mismatched headline")
+	}
+
 	for _, title := range []string{"2026 国庆旅游热门目的地：青岛、重庆预订升温", "中秋国庆假期机票预订：热门旅游城市"} {
 		if relevance(q, SearchResult{Title: title}) == 0 {
 			t.Errorf("rejected relevant %q", title)
