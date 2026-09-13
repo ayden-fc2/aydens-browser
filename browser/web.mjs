@@ -38,3 +38,7 @@ export function extractPage(generation) {
   }
   return{title,text:text.slice(0,60000),truncated:text.length>60000,links,elements,published_at};
 }
+
+export function isChallengePage({title='',text=''}) {
+  return /^(just a moment|checking your browser|captcha)([.!…\s]*)$/i.test(title.trim()) || /verify you are human|人机验证|安全验证|访问验证/i.test(title) || /验证完成后继续访问|请完成以下验证|Please complete the following challenge|Select all squares containing a duck|verify you are human/i.test(text.slice(0,1000));
+}

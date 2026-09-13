@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { Sessions } from './sessions.mjs';
-import { validURL, validateInput } from './web.mjs';
+import { validURL, validateInput, isChallengePage } from './web.mjs';
 const create=async()=>({browser:{close:async()=>{}},page:{}});
 test('separate users get distinct browser instances; one user reuses its instance',async()=>{
  const s=new Sessions({create});const [a,b]=await Promise.all([s.acquire('daily:1'),s.acquire('daily:2')]);assert.notEqual(a.id,b.id);assert.notEqual(a.browser,b.browser);
@@ -33,4 +33,11 @@ test('aggregated browser search escapes external content and only links to suppo
  const html=searchPage('<script>bad()</script>',{provider:'test',results:[{title:'<img src=x onerror=bad()>',url:'https://example.com',snippet:'a & b'},{title:'bad',url:'javascript:bad()'}]});
  assert.ok(html.includes('&lt;script&gt;'));assert.ok(!html.includes('<img'));assert.ok(!html.includes('javascript:'));assert.ok(html.includes('id="aydens-query"'));assert.ok(html.includes('href="https://example.com"'));
  assert.equal(validateInput({user_id:'daily:1',action:'search',query:'2026 国庆 旅游',engine:'aggregate'}),true);
+});
+
+test('verification pages are never returned as successful search results',()=>{
+ assert.equal(isChallengePage({title:'Just a moment...',text:''}),true);
+ assert.equal(isChallengePage({title:'DuckDuckGo',text:'Please complete the following challenge to confirm this search was made by a human.'}),true);
+ assert.equal(isChallengePage({title:'百度安全验证',text:''}),true);
+ assert.equal(isChallengePage({title:'CAPTCHA developer documentation',text:'Integration guide'}),false);
 });
