@@ -3,7 +3,9 @@ package search
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"sort"
@@ -24,6 +26,7 @@ type SearchAttempt struct {
 	Engine   string `json:"engine"`
 	Status   string `json:"status"`
 	Accepted int    `json:"accepted"`
+	Reason   string `json:"reason,omitempty"`
 }
 type SearchResponse struct {
 	Provider    string          `json:"provider"`
@@ -101,13 +104,36 @@ func fetchSearch(ctx context.Context, c *http.Client, target, token string) ([]b
 	if token != "" {
 		req.Header.Set("Authorization", "Bearer "+token)
 	}
-	r, e := c.Do(req)
+	var r *http.Response
+	for attempt := 0; attempt < 2; attempt++ {
+		r, e = c.Do(req)
+		if e == nil {
+			break
+		}
+		if ctx.Err() != nil {
+			return nil, errors.New("search request cancelled or timed out")
+		}
+		if attempt == 0 {
+			timer := time.NewTimer(150 * time.Millisecond)
+			select {
+			case <-timer.C:
+			case <-ctx.Done():
+				timer.Stop()
+				return nil, errors.New("search request cancelled or timed out")
+			}
+		}
+	}
 	if e != nil {
+		var n net.Error
+		if errors.As(e, &n) && n.Timeout() {
+			return nil, errors.New("search network timeout")
+		}
 		return nil, errors.New("search network unavailable")
 	}
+
 	defer r.Body.Close()
 	if r.StatusCode != 200 {
-		return nil, errors.New("search upstream unavailable")
+		return nil, fmt.Errorf("search upstream HTTP %d", r.StatusCode)
 	}
 	b, e := io.ReadAll(io.LimitReader(r.Body, (3<<20)+1))
 	if len(b) > 3<<20 {
@@ -177,6 +203,9 @@ collect:
 	successful := 0
 	for i, b := range batches {
 		a := SearchAttempt{Engine: s.engines[i].name, Status: "unavailable"}
+		if b.err != nil {
+			a.Reason = clip(b.err.Error(), 160)
+		}
 		if b.err == nil {
 			successful++
 			a.Status = "no_relevant_results"
@@ -243,6 +272,9 @@ collect:
 	if len(out.Results) == 0 {
 		out.Status = "no_relevant_results"
 		out.Notice = "未找到同时符合主题和时间要求的结果。请保留核心主题和年份换词重试，或放宽时间范围；不要用无关内容回答。"
+		if successful > 0 && successful < len(s.engines) {
+			out.Notice = "部分来源暂不可用，其余来源未返回符合主题和日期的结果。请保留主题/年份换词，或使用any后浏览原文核实时间。"
+		}
 		if successful == 0 {
 			out.Status = "unavailable"
 			out.Notice = "所有搜索源暂不可用；请稍后重试，不要编造来源。"

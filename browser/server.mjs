@@ -10,7 +10,7 @@ if(token.length<32)throw new Error('Web tools token must contain at least 32 cha
 const proxy=process.env.BROWSER_PROXY_URL;if(!proxy)throw new Error('BROWSER_PROXY_URL required');
 const number=(name,fallback,min,max)=>{const n=Number(process.env[name]||fallback);if(!Number.isInteger(n)||n<min||n>max)throw new Error(`Invalid ${name}`);return n;};
 const sessions=new Sessions({max:number('BROWSER_MAX_SESSIONS',4,1,8),idleMs:number('BROWSER_IDLE_SECONDS',120,30,600)*1000,ttlMs:number('BROWSER_TTL_SECONDS',900,60,3600)*1000,create:async()=>{
-  const browser=await chromium.launch({executablePath:process.env.CHROMIUM_PATH||'/usr/bin/chromium',headless:true,chromiumSandbox:true,timeout:15000,proxy:{server:proxy,bypass:'<-loopback>'},args:['--disable-quic','--disable-dev-shm-usage','--disable-background-networking','--force-webrtc-ip-handling-policy=disable_non_proxied_udp']});
+  const browser=await chromium.launch({executablePath:process.env.CHROMIUM_PATH||'/usr/bin/chromium',headless:true,chromiumSandbox:true,timeout:15000,proxy:{server:proxy,bypass:'<-loopback>'},ignoreDefaultArgs:['--enable-unsafe-swiftshader'],args:['--disable-gpu','--in-process-gpu','--use-gl=disabled','--disable-quic','--disable-dev-shm-usage','--disable-background-networking','--force-webrtc-ip-handling-policy=disable_non_proxied_udp']});
   try{
     const context=await browser.newContext({locale:'zh-CN',timezoneId:'Asia/Shanghai',acceptDownloads:false,serviceWorkers:'block',permissions:[],viewport:{width:1280,height:900}});
     let blocked=0;
@@ -28,7 +28,7 @@ const sessions=new Sessions({max:number('BROWSER_MAX_SESSIONS',4,1,8),idleMs:num
 // Readiness must prove that Chromium can really launch under the container's
 // sandbox/read-only configuration, not merely that Node can answer HTTP.
 const ready=await sessions.create();
-try{await ready.page.setContent('<title>Browser ready</title>');if(await ready.page.title()!=='Browser ready')throw new Error('Chromium readiness failed');}
+try{await ready.page.setContent('<title>Browser ready</title>');if(await ready.page.title()!=='Browser ready')throw new Error('Chromium readiness failed');await ready.page.screenshot({timeout:10000});}
 finally{await ready.browser.close();}
 const sweep=setInterval(()=>sessions.sweep().catch(()=>{}),15000);sweep.unref();
 const authorized=req=>{const actual=Buffer.from(req.headers.authorization||''),wanted=Buffer.from(`Bearer ${token}`);return actual.length===wanted.length&&timingSafeEqual(actual,wanted);};

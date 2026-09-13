@@ -10,9 +10,9 @@
 
 两个容器均 `restart: unless-stopped`，Docker 随 NAS 开机启动时自动恢复；用户手动停止的容器保持停止。浏览器不绑定主机端口、不开放 CDP/调试端口，不接触数据库、COS 或模型密钥。
 
-API 内存160MiB/CPU1；浏览器容器内存1GiB/CPU2/最多384进程。最多4个用户同时持有各自独立 Chromium 进程、上下文和 Cookie；同一用户操作串行，冲突返回409。空闲120秒销毁，最长900秒销毁，扫描间隔15秒；启动时先执行一次真实 Chromium 沙箱启动检查，之后按用户需要创建实例；重启后旧 session_id 无效。修改 Compose 环境变量可调整上限。单次操作最多30秒，超过容量返回429和 Retry-After。
+API 内存160MiB/CPU1；浏览器容器内存1GiB/CPU2/最多384进程。最多4个用户同时持有各自独立 Chromium 进程、上下文和 Cookie；同一用户操作串行，冲突返回409。空闲120秒销毁，最长900秒销毁，扫描间隔15秒；启动时先执行一次真实 Chromium 沙箱启动与截图检查，之后按用户需要创建实例；重启后旧 session_id 无效。修改 Compose 环境变量可调整上限。单次操作最多30秒，超过容量返回429和 Retry-After。
 
-浏览器只有内部网络，唯一外网路径是 Go 校验代理再经 NAS 7890。每次连接解析所有 DNS 地址、禁止内网/保留地址与 VPS 管理地址，并以校验后的固定 IP 建立代理隧道，防止重定向和 DNS 重绑定访问内网。页面不持有 API Key。仅允许 HTTP(S) 80/443 的 GET/HEAD，支持搜索与公开网页阅读；不提供登录、支付、提交修改、任意脚本、下载或绕过验证码能力。系统 Chromium 启用自身沙箱与容器隔离（非 root、去除 capabilities、只读文件系统，使用 Playwright 提供的 seccomp 配置允许创建用户命名空间），不对外暴露原始浏览器控制协议。
+浏览器只有内部网络，唯一外网路径是 Go 校验代理再经 NAS 7890。每次连接解析所有 DNS 地址、禁止内网/保留地址与 VPS 管理地址，并以校验后的固定 IP 建立代理隧道，防止重定向和 DNS 重绑定访问内网。页面不持有 API Key。仅允许 HTTP(S) 80/443 的 GET/HEAD，支持搜索与公开网页阅读；不提供登录、支付、提交修改、任意脚本、下载或绕过验证码能力。浏览器采用CPU渲染（禁用GPU/WebGL），适合NAS上搜索和普通网页浏览。系统 Chromium 启用渲染器沙箱与容器隔离（非 root、去除 capabilities、只读文件系统，使用 Playwright 提供的 seccomp 配置允许创建用户命名空间），不对外暴露原始浏览器控制协议。
 
 ## 认证与用户隔离
 
@@ -30,7 +30,7 @@ API 内存160MiB/CPU1；浏览器容器内存1GiB/CPU2/最多384进程。最多4
 - 返回 `{provider,query,status,retrieved_at,results,attempts,notice}`。
 - 每个 result：`{title,url,snippet,engine,source,published_at?}`。最多8条，过滤无关主题、旧年份、非HTTP链接，按URL/标题去重并限制同源数量。
 - `status`：`ok`、`partial`、`no_relevant_results`、`unavailable`。无结果和上游故障仍返回结构化200，调用方必须检查status和notice，不能只判断HTTP200。
-- `attempts` 列出各引擎状态及通过初筛数量。多个独立源并行，单源失败不会退回同一个坏源。相关性初筛不是事实核查；新闻RSS链接可能是Google跳转链接。重要数字、榜单、日期应继续用浏览器读原文核对。
+- `attempts` 列出各引擎状态、通过初筛数量和失败reason；网络瞬时故障最多重试一次，整体仍受16秒预算限制。多个独立源并行，单源失败不会退回同一个坏源。相关性初筛不是事实核查；新闻RSS链接可能是Google跳转链接。重要数字、榜单、日期应继续用浏览器读原文核对。
 
 ## 浏览器操作
 

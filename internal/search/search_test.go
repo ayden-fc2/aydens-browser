@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -175,5 +176,22 @@ func TestBrowserForwardingPreservesIdentityAndErrors(t *testing.T) {
 	s.Handler().ServeHTTP(w, r)
 	if w.Code != 429 || w.Header().Get("Retry-After") != "15" {
 		t.Fatal(w.Code)
+	}
+}
+
+type retryTransport struct{ calls int }
+
+func (r *retryTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	r.calls++
+	if r.calls == 1 {
+		return nil, errors.New("temporary connection reset")
+	}
+	return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader("ok")), Header: make(http.Header), Request: req}, nil
+}
+func TestTransientSearchFailureRetriesOnce(t *testing.T) {
+	tr := &retryTransport{}
+	b, e := fetchSearch(context.Background(), &http.Client{Transport: tr}, "https://example.com", "")
+	if e != nil || string(b) != "ok" || tr.calls != 2 {
+		t.Fatal(string(b), e, tr.calls)
 	}
 }
