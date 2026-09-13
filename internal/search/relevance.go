@@ -20,7 +20,7 @@ func queryGroups(q string) [][]string {
 	fields := strings.FieldsFunc(q, func(r rune) bool { return !unicode.IsLetter(r) && !unicode.IsDigit(r) })
 	groups := [][]string{}
 	for _, f := range fields {
-		if f == "and" || f == "for" || f == "a" || f == "is" {
+		if f == "and" || f == "for" || f == "a" || f == "is" || f == "the" || f == "年" {
 			continue
 		}
 		tokens := []string{}
@@ -76,6 +76,11 @@ func relevance(q string, r SearchResult) int {
 		if hits > 0 {
 			matched++
 		}
+	}
+	// A shared generic word such as 假期 is not enough: the leading topic
+	// anchor (e.g. 国庆) must occur in the title, not only in a noisy RSS digest.
+	if len(groups) > 0 && !strings.Contains(strings.ToLower(r.Title), groups[0][0]) {
+		return 0
 	}
 	required := min(2, len(groups))
 	if required == 0 || matched < required {

@@ -192,8 +192,12 @@ collect:
 					u, _ := url.Parse(r.URL)
 					r.Source = u.Hostname()
 				}
-				if r.PublishedAt != "" {
-					score += 2
+				if published, e := time.Parse(time.RFC3339, r.PublishedAt); e == nil {
+					if published.After(now.AddDate(0, 0, -30)) {
+						score += 4
+					} else if published.After(now.AddDate(-1, 0, 0)) {
+						score++
+					}
 				}
 				if o.Topic == "news" && a.Engine == "Google News" {
 					score += 3
