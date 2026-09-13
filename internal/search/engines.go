@@ -106,9 +106,9 @@ func parseDuck(b []byte) ([]SearchResult, error) {
 	return out, nil
 }
 func newsSearch(ctx context.Context, c *http.Client, q string, o SearchOptions) ([]SearchResult, error) {
-	if d := map[string]string{"day": "1d", "week": "7d", "month": "30d", "year": "365d"}[o.TimeRange]; d != "" {
-		q += " when:" + d
-	}
+	// Apply recency to the feed's actual pubDate below. Adding when: to long
+	// Chinese RSS queries can suppress otherwise matching recent articles.
+
 	v := url.Values{"q": {q}, "hl": {"zh-CN"}, "gl": {"CN"}, "ceid": {"CN:zh-Hans"}}
 	b, e := fetchSearch(ctx, c, "https://news.google.com/rss/search?"+v.Encode(), "")
 	if e != nil {
@@ -134,12 +134,12 @@ func parseNews(b []byte) ([]SearchResult, error) {
 	for _, r := range feed.Items {
 		// RSS descriptions may contain HTML. Only return text, never executable markup.
 		doc, _ := html.Parse(strings.NewReader(r.Description))
-		snippet := textOf(doc)
+		snippet := strings.TrimSpace(strings.TrimSuffix(textOf(doc), r.Source))
 		published := ""
 		if t, e := http.ParseTime(r.PubDate); e == nil {
 			published = t.UTC().Format(time.RFC3339)
 		}
-		out = append(out, SearchResult{Title: r.Title, URL: r.Link, Snippet: snippet, Source: r.Source, PublishedAt: published})
+		out = append(out, SearchResult{Title: strings.TrimSpace(strings.TrimSuffix(r.Title, " - "+r.Source)), URL: r.Link, Snippet: snippet, Source: r.Source, PublishedAt: published})
 		if len(out) == 30 {
 			break
 		}

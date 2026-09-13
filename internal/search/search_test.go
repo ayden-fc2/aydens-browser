@@ -112,7 +112,7 @@ func TestParsers(t *testing.T) {
 	}
 	rss := `<rss><channel><item><title>国庆旅游 - 某报</title><link>https://news.google.com/article/a</link><description>&lt;a href="https://example.com"&gt;正文摘要&lt;/a&gt;</description><pubDate>Thu, 10 Sep 2026 08:00:00 GMT</pubDate><source url="https://example.com">某报</source></item></channel></rss>`
 	r, e = parseNews([]byte(rss))
-	if e != nil || len(r) != 1 || r[0].PublishedAt != "2026-09-10T08:00:00Z" || r[0].Source != "某报" || strings.Contains(r[0].Snippet, "<a") {
+	if e != nil || len(r) != 1 || r[0].PublishedAt != "2026-09-10T08:00:00Z" || r[0].Title != "国庆旅游" || r[0].Source != "某报" || strings.Contains(r[0].Snippet, "<a") {
 		t.Fatal(r, e)
 	}
 }
