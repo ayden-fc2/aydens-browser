@@ -21,7 +21,7 @@ export function validateInput(input) {
 export function extractPage(generation) {
   const title=document.title.trim().slice(0,240);
   const published_at=document.querySelector('meta[property="article:published_time"],meta[name="date"],meta[name="pubdate"]')?.content||document.querySelector('time[datetime]')?.getAttribute('datetime')||'';
-  const root=document.querySelector('article')||document.querySelector('main')||document.body;
+  const root=document.querySelector('main[data-aydens-search]')||document.querySelector('article')||document.querySelector('main')||document.body;
   // innerText omits scripts and hidden content without mutating the live page.
   const text=(root?.innerText||'').replace(/\n{3,}/g,'\n\n').trim();
   const seen=new Set();
