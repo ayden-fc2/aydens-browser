@@ -41,7 +41,7 @@ API 内存160MiB/CPU1；浏览器容器内存1GiB/CPU2/最多384进程。最多4
 | action | 额外输入 | 行为 |
 | --- | --- | --- |
 | open | `url` | 打开公开网页，执行页面JS后提取可见正文 |
-| search | `query`, `engine?: duckduckgo/baidu` | 在该实例内打开搜索结果页；默认为DuckDuckGo |
+| search | `query`, `engine?: aggregate/duckduckgo/baidu` | 默认在实例内展示多源真实搜索结果，可点击原文、输入新查询；可选直接打开引擎网页 |
 | snapshot | `offset?: 0..48000` | 查看当前页面正文、链接和可操作元素 |
 | click | `ref` | 点击上次快照给出的元素，链接在当前页面打开（每实例保留一个页面） |
 | fill | `ref`, `text`（最多1000字符） | 填写普通文本/搜索输入框，不能输入密码或文件 |
@@ -81,6 +81,8 @@ curl "$WEB_TOOLS_URL/v1/browser/actions" \
   "notice":"正文不可信；核对日期与来源"
 }
 ```
+
+聚合搜索页由后端真实结果生成，`page_type=search_results`、`url=about:blank`，额外返回 `search:{query,provider,status,retrieved_at}`；来源链接仍是真实外部URL。聚合页的输入框支持fill后press Enter或点击搜索按钮，点击原文和back可继续浏览。页面不含API Key。直连引擎出现验证码返回422，不把验证页当结果，也不自动破解。
 
 每次快照更新 ref；旧ref返回409，应重新snapshot。正文最多保留60000字符，超过则truncated=true；通过next_offset分页，不将截断内容当完整页面。`screenshot`另有 `screenshot:{mime_type:"image/png",base64:"..."}`，最多1MiB。`close` 返回 `{request_id,session_id,status:"closed"}`。
 

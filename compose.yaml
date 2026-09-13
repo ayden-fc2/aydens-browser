@@ -51,6 +51,7 @@ services:
       WEB_TOOLS_TOKEN_FILE: /run/secrets/web_tools_token
       XDG_CONFIG_HOME: /tmp/chromium-config
       XDG_CACHE_HOME: /tmp/chromium-cache
+      SEARCH_API_URL: http://aydens-browser-egress:8080
       BROWSER_PROXY_URL: http://aydens-browser-egress:8081
       BROWSER_MAX_SESSIONS: 4
       BROWSER_IDLE_SECONDS: 120

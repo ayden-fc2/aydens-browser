@@ -27,3 +27,10 @@ test('strict operations do not expose arbitrary JS, credentials, selectors or fi
  assert.equal(validateInput({user_id:'daily:1',action:'open',url:'https://example.com'}),true);
  for(const extra of [{action:'evaluate',script:'process.env'},{action:'click',ref:'body'},{action:'open',url:'file:///etc/passwd'},{action:'fill',ref:'r1-0',text:'x',user_id:'../../1'},{action:'press',ref:'r1-0',key:'Control+L'}])assert.equal(validateInput({user_id:'daily:1',...extra}),false);
 });
+
+test('aggregated browser search escapes external content and only links to supported URLs',async()=>{
+ const {searchPage}=await import('./search-page.mjs');
+ const html=searchPage('<script>bad()</script>',{provider:'test',results:[{title:'<img src=x onerror=bad()>',url:'https://example.com',snippet:'a & b'},{title:'bad',url:'javascript:bad()'}]});
+ assert.ok(html.includes('&lt;script&gt;'));assert.ok(!html.includes('<img'));assert.ok(!html.includes('javascript:'));assert.ok(html.includes('id="aydens-query"'));assert.ok(html.includes('href="https://example.com"'));
+ assert.equal(validateInput({user_id:'daily:1',action:'search',query:'2026 国庆 旅游',engine:'aggregate'}),true);
+});

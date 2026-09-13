@@ -1,0 +1,6 @@
+import { validURL } from './web.mjs';
+const escape=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+export function searchPage(query,data){
+ const results=(data.results||[]).filter(r=>validURL(r.url));
+ return `<!doctype html><html lang="zh-CN"><meta charset="utf-8"><title>${escape(query)} · 搜索</title><style>body{font:16px system-ui,sans-serif;max-width:900px;margin:40px auto;padding:0 24px;color:#20252b;background:#fafafa}form{display:flex;gap:10px}input{flex:1;padding:12px;font-size:16px}button{padding:10px 20px}article{margin:20px 0;padding:20px;border:1px solid #ddd;border-radius:10px;background:white}h2{font-size:20px;margin:0 0 10px}a{color:#1565c0}p{line-height:1.7}small{color:#626973}</style><main><h1>搜索</h1><form><input id="aydens-query" aria-label="搜索词" value="${escape(query)}"><button type="button" id="aydens-search-submit">搜索</button></form><p>${escape(data.provider)} · ${results.length} 条结果</p><small>${escape(data.notice)}</small>${results.map(r=>`<article><h2><a href="${escape(r.url)}">${escape(r.title)}</a></h2><small>${escape(r.source||r.engine)} ${escape(r.published_at||'发布时间未确认')}</small><p>${escape(r.snippet)}</p></article>`).join('')}</main></html>`;
+}

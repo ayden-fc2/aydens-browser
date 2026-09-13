@@ -9,7 +9,7 @@ export function validateInput(input) {
   if (input.session_id !== undefined && (typeof input.session_id !== 'string' || input.session_id.length>80)) return false;
   if (!['open','search','snapshot','click','fill','press','scroll','back','screenshot','close'].includes(input.action)) return false;
   if (input.action==='open'&&!validURL(input.url)) return false;
-  if (input.action==='search'&&(typeof input.query!=='string'||!input.query.trim()||input.query.length>300||!['duckduckgo','baidu',undefined].includes(input.engine))) return false;
+  if (input.action==='search'&&(typeof input.query!=='string'||!input.query.trim()||input.query.length>300||!['aggregate','duckduckgo','baidu',undefined].includes(input.engine))) return false;
   if (['click','fill','press'].includes(input.action)&&(typeof input.ref!=='string'||!/^r\d+-\d+$/.test(input.ref))) return false;
   if (input.action==='fill'&&(typeof input.text!=='string'||input.text.length>1000)) return false;
   if (input.action==='press'&&input.key!=='Enter') return false;
