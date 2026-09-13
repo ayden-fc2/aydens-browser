@@ -1,0 +1,6 @@
+.env
+secrets/
+node_modules/
+/server
+*.test
+.DS_Store

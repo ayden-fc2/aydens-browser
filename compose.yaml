@@ -1,0 +1,77 @@
+name: aydens-browser
+services:
+  api:
+    build: .
+    image: aydens-browser-api:local
+    container_name: aydens-browser-api
+    restart: unless-stopped
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    mem_limit: 160m
+    cpus: 1
+    pids_limit: 128
+    environment:
+      SEARCH_PROXY_URL: http://mihomo:7890
+      SEARXNG_BASE_URL: ${SEARXNG_BASE_URL:-}
+      BROWSER_BASE_URL: http://browser:8080
+      WEB_TOOLS_TOKEN_FILE: /run/secrets/web_tools_token
+      BROWSER_DENY_IPS: 43.160.204.72
+    secrets: [web_tools_token]
+    ports: ["127.0.0.1:18082:8080"]
+    networks:
+      clients:
+        aliases: [aydens-browser-api]
+      browser_internal:
+        aliases: [aydens-browser-egress]
+      nas_proxy: {}
+    healthcheck:
+      test: [CMD, /server, healthcheck]
+      interval: 15s
+      timeout: 3s
+      retries: 5
+    logging:
+      driver: json-file
+      options: {max-size: 10m, max-file: "3"}
+  browser:
+    build: ./browser
+    image: aydens-browser:local
+    container_name: aydens-browser
+    init: true
+    restart: unless-stopped
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    mem_limit: 1024m
+    cpus: 2
+    pids_limit: 384
+    shm_size: 128m
+    tmpfs: [/tmp:size=256m,mode=1777]
+    environment:
+      WEB_TOOLS_TOKEN_FILE: /run/secrets/web_tools_token
+      BROWSER_PROXY_URL: http://aydens-browser-egress:8081
+      BROWSER_MAX_SESSIONS: 4
+      BROWSER_IDLE_SECONDS: 120
+      BROWSER_TTL_SECONDS: 900
+    secrets: [web_tools_token]
+    networks: [browser_internal]
+    healthcheck:
+      test: [CMD, node, -e, "fetch('http://127.0.0.1:8080/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 15s
+      timeout: 3s
+      retries: 5
+    logging:
+      driver: json-file
+      options: {max-size: 10m, max-file: "3"}
+secrets:
+  web_tools_token:
+    file: ${WEB_TOOLS_TOKEN_PATH:-/volume2/docker/ayden/shared-secrets/web_tools_token}
+networks:
+  clients:
+    external: true
+    name: aydens-web-tools
+  nas_proxy:
+    external: true
+    name: nas-proxy
+  browser_internal:
+    internal: true

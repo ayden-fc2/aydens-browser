@@ -1,0 +1,79 @@
+name: Test and deploy aydens-browser
+on:
+  push:
+    branches: [master]
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: aydens-browser-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+      - run: npm ci --ignore-scripts && npm test
+        working-directory: browser
+      - run: go vet ./...
+      - run: go test -race -count=1 ./...
+  deploy:
+    if: github.ref == 'refs/heads/master' && github.event_name != 'pull_request'
+    needs: test
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v6
+      - name: Configure SSH
+        env:
+          DEPLOY_SSH_KEY: ${{ secrets.NAS_DEPLOY_SSH_KEY }}
+        run: |
+          set -euo pipefail
+          if [ -z "$DEPLOY_SSH_KEY" ]; then
+            echo "::error::Repository secret NAS_DEPLOY_SSH_KEY is missing"
+            exit 1
+          fi
+          umask 077
+          mkdir -p "$HOME/.ssh"
+          printf '%s\n' "$DEPLOY_SSH_KEY" > "$HOME/.ssh/deploy_key"
+          ssh-keygen -y -f "$HOME/.ssh/deploy_key" > /dev/null
+          cp .github/known_hosts "$HOME/.ssh/known_hosts"
+          cat > "$HOME/.ssh/config" <<'EOF'
+          Host daily-vps
+            HostName 43.160.204.72
+            User ubuntu
+            IdentityFile ~/.ssh/deploy_key
+            IdentitiesOnly yes
+            BatchMode yes
+            StrictHostKeyChecking yes
+            ConnectTimeout 20
+            ServerAliveInterval 15
+            ServerAliveCountMax 3
+          Host daily-nas
+            HostName 127.0.0.1
+            Port 60222
+            User Ayden
+            ProxyJump daily-vps
+            IdentityFile ~/.ssh/deploy_key
+            IdentitiesOnly yes
+            BatchMode yes
+            StrictHostKeyChecking yes
+            ConnectTimeout 20
+            ServerAliveInterval 15
+            ServerAliveCountMax 3
+          EOF
+      - name: Upload source and deploy on NAS
+        run: |
+          set -euo pipefail
+          target=/volume2/docker/ayden/aydens-browser
+          ssh daily-nas "mkdir -p '$target'"
+          git archive --format=tar.gz HEAD | ssh daily-nas "tar -xzf - -C '$target'"
+          ssh daily-nas "bash '$target/scripts/deploy.sh'"
