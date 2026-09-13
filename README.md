@@ -43,7 +43,7 @@ API 内存160MiB/CPU1；浏览器容器内存1GiB/CPU2/最多384进程。最多4
 | open | `url` | 打开公开网页，执行页面JS后提取可见正文 |
 | search | `query`, `engine?: duckduckgo/baidu` | 在该实例内打开搜索结果页；默认为DuckDuckGo |
 | snapshot | `offset?: 0..48000` | 查看当前页面正文、链接和可操作元素 |
-| click | `ref` | 点击上次快照给出的元素 |
+| click | `ref` | 点击上次快照给出的元素，链接在当前页面打开（每实例保留一个页面） |
 | fill | `ref`, `text`（最多1000字符） | 填写普通文本/搜索输入框，不能输入密码或文件 |
 | press | `ref`, `key: Enter` | 按回车；只有GET搜索表单可提交 |
 | scroll | `direction: up/down` | 滚动720像素并刷新快照 |

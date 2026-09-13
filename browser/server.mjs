@@ -41,7 +41,7 @@ const server=http.createServer(async(req,res)=>{
     session=await sessions.acquire(input.user_id,input.session_id);
     const stop=()=>sessions.close(session).catch(()=>{});
     res.once('close',()=>{if(!res.writableEnded)stop();});
-    deadline=setTimeout(stop,30000);
+    deadline=setTimeout(stop,Math.max(1,Math.min(30000,session.created+sessions.ttlMs-Date.now())));
     const page=session.page;
     if(input.action==='close'){await sessions.close(session);result={session_id:session.id,status:'closed'};}
     else{
@@ -56,7 +56,7 @@ const server=http.createServer(async(req,res)=>{
       }else if(['click','fill','press'].includes(input.action)){
         if(!session.refs.has(input.ref))throw new BrowserError(409,'Element reference is stale; request snapshot again');
         const locator=page.locator(`[data-aydens-ref="${input.ref}"]`);
-        if(input.action==='click')await locator.click();
+        if(input.action==='click'){await locator.evaluate(el=>{if(el.tagName==='A')el.target='_self';});await locator.click();}
         if(input.action==='fill'){
           if(!await locator.evaluate(e=>e.tagName==='TEXTAREA'||(e.tagName==='INPUT'&&['text','search','url','email','tel','number'].includes(e.type))))throw new BrowserError(400,'Only ordinary text/search inputs can be filled');
           await locator.fill(input.text);
@@ -82,7 +82,7 @@ const server=http.createServer(async(req,res)=>{
     status=200;send(res,status,{request_id,...result});
   }catch(e){status=e instanceof BrowserError?e.status:502;if(status===429)res.setHeader('Retry-After','15');if(!res.writableEnded)send(res,status,{request_id,session_id:session?.id,error:e instanceof BrowserError?e.message:'Browser operation timed out or page unavailable; try another source'});}
   finally{
-    clearTimeout(deadline);if(session)sessions.release(session);
+    clearTimeout(deadline);if(session){if(session.browser.isConnected())sessions.release(session);else await sessions.close(session);}
     const user=input?.user_id;const user_hash=typeof user==='string'?createHash('sha256').update(user).digest('hex').slice(0,16):undefined;
     // Correlate I/O without logging API keys, cookies, query text or page content.
     console.log(JSON.stringify({event:'browser_action',request_id,user_hash,action:input?.action,status,duration_ms:Date.now()-started,input:{query_chars:input?.query?.length,text_chars:input?.text?.length},output:{text_chars:result?.text?.length,elements:result?.elements?.length,links:result?.links?.length}}));
