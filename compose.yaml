@@ -46,7 +46,7 @@ services:
     cpus: 2
     pids_limit: 384
     shm_size: 128m
-    tmpfs: [/tmp:size=256m,mode=1777]
+    tmpfs: ["/tmp:size=256m,mode=1777"]
     environment:
       WEB_TOOLS_TOKEN_FILE: /run/secrets/web_tools_token
       BROWSER_PROXY_URL: http://aydens-browser-egress:8081
