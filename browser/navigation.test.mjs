@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { chromium } from 'playwright-core';
 import { navigate,errorDetails } from './navigation.mjs';
 import { Sessions,sessionOwner } from './sessions.mjs';
-import { validateInput } from './web.mjs';
+import { validateInput,extractPage } from './web.mjs';
 
 test('assistant scope isolates concurrent browsers and rejects cross-assistant session IDs',async()=>{
  const s=new Sessions({create:async()=>({browser:{close:async()=>{}}})});
@@ -25,7 +25,14 @@ test('error classification distinguishes timeout, network failure and source den
 test('real browser preserves readable pages despite stalled scripts and retries empty parser-blocked pages', {skip:!process.env.BROWSER_TEST_EXECUTABLE}, async t=>{
  const browser=await chromium.launch({executablePath:process.env.BROWSER_TEST_EXECUTABLE,chromiumSandbox:false});
  t.after(()=>browser.close());
- for(const kind of ['body-before-script','body-after-script','denied','challenge','blank'])await t.test(kind,async()=>{
+ await t.test('publication outside article and collapsed content remain visible as metadata',async()=>{
+  const page=await browser.newPage();
+  await page.setContent('<span id="news-time">2025-09-14 21:01</span><article>Article text<button>展开全文</button></article>');
+  const data=await page.evaluate(extractPage,1);
+  assert.equal(data.published_at,'2025-09-14 21:01');assert.equal(data.content_collapsed,true);
+  assert.ok(!data.text.includes('2025'));await page.close();
+ });
+ for(const kind of ['body-before-script' ,'body-after-script','denied','challenge','blank'])await t.test(kind,async()=>{
   const state={readMode:false};const context=await browser.newContext();
   try{
    await context.route('**/*',async route=>{

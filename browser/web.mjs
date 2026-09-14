@@ -21,7 +21,8 @@ export function validateInput(input) {
 // Runs inside the page; has no access to Node, secrets, or host files.
 export function extractPage(generation) {
   const title=document.title.trim().slice(0,240);
-  const published_at=document.querySelector('meta[property="article:published_time"],meta[name="date"],meta[name="pubdate"]')?.content||document.querySelector('time[datetime]')?.getAttribute('datetime')||'';
+  const dateNode=document.querySelector('[itemprop="datePublished"],time[datetime],#news-time,.publish-time');
+  const published_at=document.querySelector('meta[property="article:published_time"],meta[property="og:release_date"],meta[name="date"],meta[name="pubdate"],meta[name="publishdate"],meta[itemprop="datePublished"]')?.content||dateNode?.getAttribute('datetime')||dateNode?.textContent?.trim().slice(0,160)||'';
   const root=document.querySelector('main[data-aydens-search]')||document.querySelector('article')||document.querySelector('main')||document.body;
   // innerText omits scripts and hidden content without mutating the live page.
   const text=(root?.innerText||'').replace(/\n{3,}/g,'\n\n').trim();
@@ -37,7 +38,8 @@ export function extractPage(generation) {
     const ref=`r${generation}-${elements.length}`;el.setAttribute('data-aydens-ref',ref);
     elements.push({ref,tag:el.tagName.toLowerCase(),type:el.type||undefined,value:['INPUT','TEXTAREA','SELECT'].includes(el.tagName)?el.value.slice(0,1000):undefined,label:(el.getAttribute('aria-label')||el.innerText||el.placeholder||el.name||'').trim().slice(0,120),url:el.tagName==='A'?el.href:undefined});
   }
-  return{title,text:text.slice(0,60000),truncated:text.length>60000,links,elements,published_at};
+  const content_collapsed=elements.some(e=>/^(展开全文|展开剩余|阅读全文|read more|show more)$/i.test(e.label))||!!(root&&root.scrollHeight>root.clientHeight+32&&['hidden','clip'].includes(getComputedStyle(root).overflowY));
+  return{title,content_collapsed,text:text.slice(0,60000),truncated:text.length>60000,links,elements,published_at};
 }
 
 export function isChallengePage({title='',text=''}) {
