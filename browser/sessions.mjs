@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 export class BrowserError extends Error {
-  constructor(status, message) { super(message); this.status = status; }
+  constructor(status, message, details) { super(message); this.status = status; this.details = details; }
 }
 export class Sessions {
   constructor({create, max=4, idleMs=120000, ttlMs=900000, now=Date.now}) {
@@ -32,3 +32,6 @@ export class Sessions {
   }
   async shutdown() { await Promise.all([...this.users.values()].map(s=>this.close(s))); }
 }
+
+// Tuple encoding avoids collisions between caller-controlled user/assistant IDs.
+export const sessionOwner = input => JSON.stringify([input.user_id,input.agent_id||"default"]);

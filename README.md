@@ -10,7 +10,7 @@
 
 两个容器均 `restart: unless-stopped`，Docker 随 NAS 开机启动时自动恢复；用户手动停止的容器保持停止。浏览器不绑定主机端口、不开放 CDP/调试端口，不接触数据库、COS 或模型密钥。
 
-API 内存160MiB/CPU1；浏览器容器内存1GiB/CPU2/最多384进程。最多4个用户同时持有各自独立 Chromium 进程、上下文和 Cookie；同一用户操作串行，冲突返回409。空闲120秒销毁，最长900秒销毁，扫描间隔15秒；启动时先执行一次真实 Chromium 沙箱启动与截图检查，之后按用户需要创建实例；重启后旧 session_id 无效。修改 Compose 环境变量可调整上限。单次操作最多30秒，超过容量返回429和 Retry-After。
+API 内存160MiB/CPU1；浏览器容器内存1GiB/CPU2/最多384进程。最多4个用户/助手组合同时持有各自独立 Chromium 进程、上下文和 Cookie；同一用户的同一助手操作串行，冲突返回409。空闲120秒销毁，最长900秒销毁，扫描间隔15秒；启动时先执行一次真实 Chromium 沙箱启动与截图检查，之后按用户需要创建实例；重启后旧 session_id 无效。修改 Compose 环境变量可调整上限。单次操作最多30秒，超过容量返回429和 Retry-After。
 
 浏览器只有内部网络，唯一外网路径是 Go 校验代理再经 NAS 7890。每次连接解析所有 DNS 地址、禁止内网/保留地址与 VPS 管理地址，并以校验后的固定 IP 建立代理隧道，防止重定向和 DNS 重绑定访问内网。页面不持有 API Key。仅允许 HTTP(S) 80/443 的 GET/HEAD，支持搜索与公开网页阅读；不提供登录、支付、提交修改、任意脚本、下载或绕过验证码能力。浏览器采用CPU渲染（禁用GPU/WebGL），适合NAS上搜索和普通网页浏览。系统 Chromium 启用渲染器沙箱与容器隔离（非 root、去除 capabilities、只读文件系统，使用 Playwright 提供的 seccomp 配置允许创建用户命名空间），不对外暴露原始浏览器控制协议。
 
@@ -18,7 +18,7 @@ API 内存160MiB/CPU1；浏览器容器内存1GiB/CPU2/最多384进程。最多4
 
 所有 `/v1/*` 请求需 `Authorization: Bearer <API_KEY>`；Key 从运行时文件读取，禁止放前端包、URL、Git、模型提示词或日志。`GET /healthz` 仅用于存活探针，不代表搜索引擎可用。
 
-浏览器请求必填 `user_id`（1–100位字母数字、`_ : @ . -`），使用 `daily:123`、`other-app:123` 等命名空间。这是持有服务 Key 的可信调用方传入的用户身份，不是终端用户自己填写的权限凭证。Daily 在服务端从登录会话注入 `daily:<真实用户ID>`，模型没有 user_id 参数。session_id 绑定 user_id，不允许跨用户操作。共享 Key 的其他后端同样必须验证自己的用户身份后调用。
+浏览器请求必填 `user_id`（1–100位字母数字、`_ : @ . -`），使用 `daily:123`、`other-app:123` 等命名空间。这是持有服务 Key 的可信调用方传入的用户身份，不是终端用户自己填写的权限凭证。Daily 在服务端从登录会话注入 `daily:<真实用户ID>` 和 `agent_id=daily`，模型没有身份参数。可选 `agent_id`（同样1–100位，默认 `default`）；`(user_id, agent_id)` 绑定独立实例，session_id 不允许跨用户或跨助手操作。相同用户的不同助手可同时操作，四实例上限按组合计数。共享 Key 的其他后端同样必须验证自己的用户身份后调用。
 
 ## 搜索
 
@@ -36,7 +36,7 @@ API 内存160MiB/CPU1；浏览器容器内存1GiB/CPU2/最多384进程。最多4
 
 `POST /v1/browser/actions`，`Content-Type: application/json`。
 
-所有操作通用输入：`{user_id,session_id?,action,...}`。第一次 `open`/`search` 自动创建实例；省略session_id复用该用户现存实例，传入过期或其他用户的session_id返回404。后续操作需已有会话。
+所有操作通用输入：`{user_id,agent_id?,session_id?,action,...}`。第一次 `open`/`search` 自动创建实例；省略session_id复用该用户与助手组合的现存实例，传入过期或其他用户的session_id返回404。后续操作需已有会话。
 
 | action | 额外输入 | 行为 |
 | --- | --- | --- |
@@ -49,14 +49,14 @@ API 内存160MiB/CPU1；浏览器容器内存1GiB/CPU2/最多384进程。最多4
 | scroll | `direction: up/down` | 滚动720像素并刷新快照 |
 | back | 无 | 后退并读取页面 |
 | screenshot | 无 | 返回当前视口PNG，适合外部调用方查看；不塞入文本模型上下文 |
-| close | 无 | 立即关闭并销毁该用户实例 |
+| close | 无 | 立即关闭并销毁该用户与助手组合的实例 |
 
 示例：
 
 ```sh
 curl "$WEB_TOOLS_URL/v1/browser/actions" \
   -H "Authorization: Bearer $WEB_TOOLS_API_KEY" -H 'Content-Type: application/json' \
-  -d '{"user_id":"example:123","action":"search","query":"2026 国庆 旅游 热门城市"}'
+  -d '{"user_id":"example:123","agent_id":"research","action":"search","query":"2026 国庆 旅游 热门城市"}'
 ```
 
 正常输出：
@@ -84,6 +84,10 @@ curl "$WEB_TOOLS_URL/v1/browser/actions" \
 
 聚合搜索页由后端真实结果生成，`page_type=search_results`、`url=about:blank`，额外返回 `search:{query,provider,status,retrieved_at}`；来源链接仍是真实外部URL。聚合页的输入框支持fill后press Enter或点击搜索按钮，点击原文和back可继续浏览。页面不含API Key。直连引擎出现验证码返回422，不把验证页当结果，也不自动破解。
 
+接口只需用户标识、可选助手标识和操作；无需单独注册助手或创建会话。例如同一 `user_id=example:123` 分别传 `agent_id=research`、`agent_id=writing` 即可并行开启两个独立浏览器。现有不传 agent_id 的调用继续使用 default。所有后续操作（包括 close）使用相同身份组合。
+
+网页 HTTP 200 后按有限时间等待 DOM；已有正文不因慢脚本丢弃，空白且解析受阻时只重试一次静态阅读。返回 `load_state=dom_ready/partial` 和 `reading_mode=interactive/static`，partial 不能当完整页面；static 不执行页面脚本，再次 open 会恢复常规尝试。HTTP拒绝和验证码不重试绕过。错误另含 `code`、`retryable`，源站HTTP错误含 `upstream_status`，网络错误可含 `network_error`；navigation_timeout 与 verification_required 含义不同。日志同时记录这些脱敏故障类别。
+
 每次快照更新 ref；旧ref返回409，应重新snapshot。正文最多保留60000字符，超过则truncated=true；通过next_offset分页，不将截断内容当完整页面。`screenshot`另有 `screenshot:{mime_type:"image/png",base64:"..."}`，最多1MiB。`close` 返回 `{request_id,session_id,status:"closed"}`。
 
 错误输出 `{request_id?,session_id?,error}`，HTTP：400参数错误、401Key错误、404会话不存在/已过期/不属当前用户、409同用户忙或旧ref、413超限、422内容格式不支持或验证码、429容量已满、502网页失败/超时、503内部服务暂不可用。不绕过验证码，换源即可。
@@ -92,6 +96,6 @@ curl "$WEB_TOOLS_URL/v1/browser/actions" \
 
 ## 验证
 
-`go vet ./... && go test -race ./...`；`cd browser && npm ci && npm test`。测试涵盖中文跑题回归、来源回退/超时、年份和时间过滤、DNS/代理SSRF防护、用户会话隔离、并发容量、闲置与最大时长清理。
+`go vet ./... && go test -race ./...`；`cd browser && npm ci && npm test`；设置 `BROWSER_TEST_EXECUTABLE` 为本机 Chrome 路径可运行真实浏览器慢脚本回归，Actions 默认执行。测试涵盖中文跑题回归、来源回退/超时、年份和时间过滤、DNS/代理SSRF防护、用户会话隔离、并发容量、闲置与最大时长清理。
 
 `browser/seccomp_profile.json` 来自 [Microsoft Playwright](https://github.com/microsoft/playwright/blob/main/utils/docker/seccomp_profile.json)，增加了 Chromium 用户命名空间沙箱所需的 chroot 系统调用许可（仍保持 cap_drop: ALL），使用 Apache-2.0 许可，许可证见 `browser/PLAYWRIGHT_LICENSE`。

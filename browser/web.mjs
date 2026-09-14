@@ -4,8 +4,9 @@ export function validURL(raw) {
 }
 export function validateInput(input) {
   if (!input || typeof input !== 'object' || Array.isArray(input)) return false;
-  if (Object.keys(input).some(k=>!['user_id','session_id','action','url','query','engine','ref','text','key','direction','offset'].includes(k))) return false;
+  if (Object.keys(input).some(k=>!['user_id','agent_id','session_id','action','url','query','engine','ref','text','key','direction','offset'].includes(k))) return false;
   if (typeof input.user_id !== 'string' || !/^[\w:@.-]{1,100}$/.test(input.user_id)) return false;
+  if (input.agent_id !== undefined && (typeof input.agent_id !== 'string' || !/^[\w:@.-]{1,100}$/.test(input.agent_id))) return false;
   if (input.session_id !== undefined && (typeof input.session_id !== 'string' || input.session_id.length>80)) return false;
   if (!['open','search','snapshot','click','fill','press','scroll','back','screenshot','close'].includes(input.action)) return false;
   if (input.action==='open'&&!validURL(input.url)) return false;

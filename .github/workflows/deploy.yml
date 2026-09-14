@@ -23,6 +23,8 @@ jobs:
           node-version: 22
       - run: npm ci --ignore-scripts && npm test
         working-directory: browser
+        env:
+          BROWSER_TEST_EXECUTABLE: /usr/bin/google-chrome
       - run: go vet ./...
       - run: go test -race -count=1 ./...
   deploy:
