@@ -33,11 +33,12 @@ test('real browser preserves readable pages despite stalled scripts and retries 
   assert.ok(!data.text.includes('2025'));await page.close();
  });
  for(const kind of ['body-before-script' ,'body-after-script','denied','challenge','blank'])await t.test(kind,async()=>{
-  const state={readMode:false};const context=await browser.newContext();
+  let documents=0;const state={readMode:false};const context=await browser.newContext();
   try{
    await context.route('**/*',async route=>{
     const url=new URL(route.request().url());
     if(url.pathname==='/slow.js'){if(state.readMode)await route.abort();return;}
+    documents++;
     const content='<main><h1>Verified article</h1><p>'+('Original article body. '.repeat(30))+'</p></main>';
     const script='<script src="/slow.js"></script>';
     const html=kind==='body-after-script'?'<head>'+script+'</head><body>'+content+'<script>document.body.textContent=\"inline replaced body\";</script></body>':kind==='body-before-script'?'<body>'+content+script+'</body>':kind==='denied'?'Access denied':kind==='challenge'?'<title>Just a moment...</title><body></body>':'<body></body>';
@@ -52,6 +53,7 @@ test('real browser preserves readable pages despite stalled scripts and retries 
     assert.match(await page.locator('body').innerText(),/Verified article/);
     assert.equal(state.readMode,kind==='body-after-script');
     assert.equal(session.loadState,kind==='body-after-script'?'dom_ready':'partial');
+    assert.equal(documents,1,'static fallback must reuse the received document');
    }
   }finally{await context.close();}
  });

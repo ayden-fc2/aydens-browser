@@ -86,7 +86,7 @@ curl "$WEB_TOOLS_URL/v1/browser/actions" \
 
 接口只需用户标识、可选助手标识和操作；无需单独注册助手或创建会话。例如同一 `user_id=example:123` 分别传 `agent_id=research`、`agent_id=writing` 即可并行开启两个独立浏览器。现有不传 agent_id 的调用继续使用 default。所有后续操作（包括 close）使用相同身份组合。
 
-网页 HTTP 200 后按有限时间等待 DOM；已有正文不因慢脚本丢弃，空白且解析受阻时只重试一次静态阅读。返回 `load_state=dom_ready/partial` 和 `reading_mode=interactive/static`，partial 不能当完整页面；`content_collapsed=true` 表示检测到展开按钮或裁剪，不能当作已读取全文；static 不执行页面脚本，再次 open 会恢复常规尝试。HTTP拒绝和验证码不重试绕过。错误另含 `code`、`retryable`，源站HTTP错误含 `upstream_status`，网络错误可含 `network_error`；navigation_timeout 与 verification_required 含义不同。日志同时记录这些脱敏故障类别。
+网页 HTTP 200 后按有限时间等待 DOM；已有正文不因慢脚本丢弃，空白且解析受阻时只重试一次静态阅读，优先复用已收到的源站HTML（最多2MiB），避免代理重复下载；正文尚未收完时才短暂重试网络。返回 `load_state=dom_ready/partial` 和 `reading_mode=interactive/static`，partial 不能当完整页面；`content_collapsed=true` 表示检测到展开按钮或裁剪，不能当作已读取全文；static 不执行页面脚本，再次 open 会恢复常规尝试。HTTP拒绝和验证码不重试绕过。错误另含 `code`、`retryable`，源站HTTP错误含 `upstream_status`，网络错误可含 `network_error`；navigation_timeout 与 verification_required 含义不同。日志同时记录这些脱敏故障类别。
 
 每次快照更新 ref；旧ref返回409，应重新snapshot。正文最多保留60000字符，超过则truncated=true；通过next_offset分页，不将截断内容当完整页面。`screenshot`另有 `screenshot:{mime_type:"image/png",base64:"..."}`，最多1MiB。`close` 返回 `{request_id,session_id,status:"closed"}`。
 
