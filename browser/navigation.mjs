@@ -1,4 +1,5 @@
 import { BrowserError } from './sessions.mjs';
+import { isChallengePage } from './web.mjs';
 
 function checkResponse(response) {
   if (!response) throw new BrowserError(502,'No document response; try another source',{code:'no_document',retryable:true});
@@ -25,6 +26,7 @@ export async function navigate(session,target,{commitMs=10000,domMs=3500}={}) {
   let response=await page.goto(target,{waitUntil:'commit',timeout:commitMs});
   checkResponse(response);
   let loaded=await settle(page,domMs);
+  if(isChallengePage({title:await page.title(),text:await bodyText(page)}))throw new BrowserError(422,'Site requires verification; choose another source',{code:'verification_required',retryable:false});
   if(!loaded&&(await bodyText(page)).length<160){
     await setReadingMode(session,true);
     response=await page.goto(page.url(),{waitUntil:'commit',timeout:commitMs});

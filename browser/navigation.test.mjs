@@ -25,7 +25,7 @@ test('error classification distinguishes timeout, network failure and source den
 test('real browser preserves readable pages despite stalled scripts and retries empty parser-blocked pages', {skip:!process.env.BROWSER_TEST_EXECUTABLE}, async t=>{
  const browser=await chromium.launch({executablePath:process.env.BROWSER_TEST_EXECUTABLE,chromiumSandbox:false});
  t.after(()=>browser.close());
- for(const kind of ['body-before-script','body-after-script','denied','blank'])await t.test(kind,async()=>{
+ for(const kind of ['body-before-script','body-after-script','denied','challenge','blank'])await t.test(kind,async()=>{
   const state={readMode:false};const context=await browser.newContext();
   try{
    await context.route('**/*',async route=>{
@@ -33,11 +33,12 @@ test('real browser preserves readable pages despite stalled scripts and retries 
     if(url.pathname==='/slow.js'){if(state.readMode)await route.abort();return;}
     const content='<main><h1>Verified article</h1><p>'+('Original article body. '.repeat(30))+'</p></main>';
     const script='<script src="/slow.js"></script>';
-    const html=kind==='body-after-script'?'<head>'+script+'</head><body>'+content+'<script>document.body.textContent=\"inline replaced body\";</script></body>':kind==='body-before-script'?'<body>'+content+script+'</body>':kind==='denied'?'Access denied':'<body></body>';
+    const html=kind==='body-after-script'?'<head>'+script+'</head><body>'+content+'<script>document.body.textContent=\"inline replaced body\";</script></body>':kind==='body-before-script'?'<body>'+content+script+'</body>':kind==='denied'?'Access denied':kind==='challenge'?'<title>Just a moment...</title><body></body>':'<body></body>';
     await route.fulfill({status:kind==='denied'?403:200,contentType:'text/html',body:html});
    });
    const page=await context.newPage();const session={page,state,refs:new Set()};
    if(kind==='denied'){await assert.rejects(navigate(session,'https://fixture.example/',{domMs:150}),e=>e.details.upstream_status===403);assert.equal(state.readMode,false);}
+   else if(kind==='challenge'){await assert.rejects(navigate(session,'https://fixture.example/',{domMs:150}),e=>e.details.code==='verification_required');assert.equal(state.readMode,false);}
    else if(kind==='blank')await assert.rejects(navigate(session,'https://fixture.example/',{domMs:150}),e=>e.details.code==='empty_document');
    else{
     await navigate(session,'https://fixture.example/',{domMs:150});
