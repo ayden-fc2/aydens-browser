@@ -73,6 +73,9 @@ func duckSearch(ctx context.Context, c *http.Client, q string, o SearchOptions) 
 	return parseDuck(b)
 }
 func parseDuck(b []byte) ([]SearchResult, error) {
+	if strings.Contains(string(b), "anomaly.js") || strings.Contains(string(b), "Select all squares containing a duck") {
+		return nil, errors.New("DuckDuckGo verification required")
+	}
 	doc, e := html.Parse(strings.NewReader(string(b)))
 	if e != nil {
 		return nil, e
@@ -154,6 +157,9 @@ func baiduSearch(ctx context.Context, c *http.Client, q string, o SearchOptions)
 	return parseBaidu(b)
 }
 func parseBaidu(b []byte) ([]SearchResult, error) {
+	if strings.Contains(string(b), "百度安全验证") || strings.Contains(string(b), "wappass.baidu.com") {
+		return nil, errors.New("Baidu verification required")
+	}
 	doc, e := html.Parse(strings.NewReader(string(b)))
 	if e != nil {
 		return nil, e

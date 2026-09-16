@@ -195,3 +195,47 @@ func TestTransientSearchFailureRetriesOnce(t *testing.T) {
 		t.Fatal(string(b), e, tr.calls)
 	}
 }
+
+func TestDegradedEmptySearchAndSourceCooldown(t *testing.T) {
+	s := NewSearch("")
+	now := time.Now()
+	s.now = func() time.Time { return now }
+	blockedCalls, workingCalls := 0, 0
+	s.engines = []searchEngine{
+		{"blocked", func(context.Context, string, SearchOptions) ([]SearchResult, error) {
+			blockedCalls++
+			return nil, errors.New("search upstream HTTP 202")
+		}},
+		{"working", func(context.Context, string, SearchOptions) ([]SearchResult, error) {
+			workingCalls++
+			return []SearchResult{}, nil
+		}},
+	}
+	for i := 0; i < 3; i++ {
+		r, err := s.Run(context.Background(), "主题 检索")
+		if err != nil || r.Status != "partial" || len(r.Results) != 0 {
+			t.Fatalf("%+v %v", r, err)
+		}
+	}
+	if blockedCalls != 1 || workingCalls != 3 {
+		t.Fatalf("blocked=%d working=%d", blockedCalls, workingCalls)
+	}
+	now = now.Add(121 * time.Second)
+	s.Run(context.Background(), "主题 检索")
+	if blockedCalls != 2 {
+		t.Fatal("source never recovered")
+	}
+	if _, err := parseBaidu([]byte(`<title>百度安全验证</title>`)); err == nil || !strings.Contains(err.Error(), "verification required") {
+		t.Fatal(err)
+	}
+}
+func TestSearchExplainsDateFiltering(t *testing.T) {
+	s := NewSearch("")
+	s.engines = []searchEngine{{"source", func(context.Context, string, SearchOptions) ([]SearchResult, error) {
+		return []SearchResult{{Title: "主题 检索", URL: "https://example.com/unknown-date"}, {Title: "无关", URL: "https://example.com/irrelevant"}}, nil
+	}}}
+	r, err := s.RunWithOptions(context.Background(), "主题 检索", SearchOptions{TimeRange: "week"})
+	if err != nil || r.Attempts[0].Received != 2 || r.Attempts[0].FilteredTime != 1 || r.Attempts[0].FilteredTopic != 1 || len(r.Results) != 0 {
+		t.Fatalf("%+v %v", r, err)
+	}
+}

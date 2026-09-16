@@ -37,7 +37,7 @@ async function aggregateSearch(session,query){
   const response=await fetch(target,{headers:{Authorization:`Bearer ${token}`},signal:AbortSignal.timeout(18000)});
   if(!response.ok)throw new BrowserError(503,'Search service unavailable');
   const data=await response.json();
-  if(!Array.isArray(data.results)||!data.results.length)throw new BrowserError(422,data.notice||'No relevant search results; rephrase the query');
+  if(!Array.isArray(data.results)||!data.results.length)throw new BrowserError(422,data.notice||'No relevant search results; rephrase the query',{code:data.status==='partial'||data.status==='unavailable'?'search_degraded':'no_relevant_results',retryable:false,search_status:data.status,attempts:data.attempts});
   const html=searchPage(query,data);
   await setReadingMode(session,false);session.loadState='dom_ready';await session.page.goto('about:blank');await session.page.setContent(html,{waitUntil:'domcontentloaded',timeout:5000});
   session.searchHTML=html;session.searchMeta={query:data.query,provider:data.provider,status:data.status,retrieved_at:data.retrieved_at};

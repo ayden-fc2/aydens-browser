@@ -58,3 +58,15 @@ test('real browser preserves readable pages despite stalled scripts and retries 
   }finally{await context.close();}
  });
 });
+
+test('waits for client-rendered text and distinguishes unresolved news redirects', {skip:!process.env.BROWSER_TEST_EXECUTABLE},async t=>{
+ const browser=await chromium.launch({executablePath:process.env.BROWSER_TEST_EXECUTABLE,chromiumSandbox:false});t.after(()=>browser.close());
+ for(const kind of ['article','challenge','redirect'])await t.test(kind,async()=>{
+  const context=await browser.newContext();try{
+   await context.route('**/*',r=>r.fulfill({contentType:'text/html',body:`<title>Loading</title><body><script>setTimeout(()=>{document.body.textContent=${JSON.stringify(kind==='article'?'Delayed article body':kind==='challenge'?'Please complete the following challenge':'Redirect notice: invalid web address')}},120)</script></body>`}));
+   const page=await context.newPage(),session={page,state:{readMode:false},refs:new Set()};
+   if(kind==='article'){await navigate(session,'https://fixture.example/',{renderMs:1000});assert.match(await page.locator('body').innerText(),/Delayed article body/);}
+   else await assert.rejects(navigate(session,kind==='redirect'?'https://news.google.com/rss/articles/test':'https://fixture.example/',{renderMs:1000}),e=>e.details.code===(kind==='redirect'?'news_redirect_unresolved':'verification_required'));
+  }finally{await context.close();}
+ });
+});

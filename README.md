@@ -99,3 +99,11 @@ curl "$WEB_TOOLS_URL/v1/browser/actions" \
 `go vet ./... && go test -race ./...`；`cd browser && npm ci && npm test`；设置 `BROWSER_TEST_EXECUTABLE` 为本机 Chrome 路径可运行真实浏览器慢脚本回归，Actions 默认执行。测试涵盖中文跑题回归、来源回退/超时、年份和时间过滤、DNS/代理SSRF防护、用户会话隔离、并发容量、闲置与最大时长清理。
 
 `browser/seccomp_profile.json` 来自 [Microsoft Playwright](https://github.com/microsoft/playwright/blob/main/utils/docker/seccomp_profile.json)，增加了 Chromium 用户命名空间沙箱所需的 chroot 系统调用许可（仍保持 cap_drop: ALL），使用 Apache-2.0 许可，许可证见 `browser/PLAYWRIGHT_LICENSE`。
+
+## 2026-09-17 搜索故障处理
+
+搜索源 HTTP 202/429 或验证码触发 2 分钟冷却；其他来源继续独立执行。所有结果为空但有来源失败时返回 `partial`（全部失败为 `unavailable`），不再将故障冒充完整搜索的无结果。每个 attempt 另含 `received`、`filtered_topic`、`filtered_time`，严格日期条件仍不接受未知日期，客户端可明确区分过滤与不可用。
+
+浏览器在 DOM 就绪后仍允许客户端渲染正文；再次检查迟到的验证页面。Google News 空白/失败跳转返回 `news_redirect_unresolved`，建议用文章标题和媒体名找直接来源，不把跳转提示当文章正文。聚合浏览器搜索失败返回 `search_degraded` 或 `no_relevant_results` 和 attempts；它与 web_search 使用同一来源，重复调用不是换源。保留 GET/HEAD 公开网页限制，不绕过验证码。
+
+真实 NAS 排查发现百度验证码、DuckDuckGo HTTP 202、Google News 跳转失败；Bing 备用实测返回无关结果，未接入。免费抓取不能保证持续可用，可通过已有 `SEARXNG_BASE_URL` 接入用户自己的聚合服务；稳定商业搜索 API 需要另行提供账户和密钥。

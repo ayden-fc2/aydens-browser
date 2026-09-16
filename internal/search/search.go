@@ -11,6 +11,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -23,10 +24,13 @@ type SearchResult struct {
 	PublishedAt string `json:"published_at,omitempty"`
 }
 type SearchAttempt struct {
-	Engine   string `json:"engine"`
-	Status   string `json:"status"`
-	Accepted int    `json:"accepted"`
-	Reason   string `json:"reason,omitempty"`
+	Engine        string `json:"engine"`
+	Status        string `json:"status"`
+	Accepted      int    `json:"accepted"`
+	Reason        string `json:"reason,omitempty"`
+	Received      int    `json:"received"`
+	FilteredTopic int    `json:"filtered_topic,omitempty"`
+	FilteredTime  int    `json:"filtered_time,omitempty"`
 }
 type SearchResponse struct {
 	Provider    string          `json:"provider"`
@@ -51,6 +55,8 @@ type Search struct {
 	Client     *http.Client
 	engines    []searchEngine
 	now        func() time.Time
+	mu         sync.Mutex
+	cooldown   map[string]time.Time
 }
 
 func NewSearch(base string) *Search {
@@ -177,7 +183,7 @@ func (s *Search) RunWithOptions(ctx context.Context, q string, o SearchOptions) 
 	}
 	replies := make(chan reply, len(s.engines))
 	for i, engine := range s.engines {
-		go func() { r, e := engine.run(ctx, q, o); replies <- reply{i, r, e} }()
+		go func() { r, e := s.runEngine(ctx, engine, q, o); replies <- reply{i, r, e} }()
 	}
 	batches := make([]reply, len(s.engines))
 	for i := range batches {
@@ -209,9 +215,15 @@ collect:
 		if b.err == nil {
 			successful++
 			a.Status = "no_relevant_results"
+			a.Received = len(b.results)
 			for _, r := range b.results {
 				score := relevance(q, r)
-				if !validLink(r.URL) || score == 0 || !inSearchTime(q, r, o, now) {
+				if !validLink(r.URL) || score == 0 {
+					a.FilteredTopic++
+					continue
+				}
+				if !inSearchTime(q, r, o, now) {
+					a.FilteredTime++
 					continue
 				}
 				r.Engine = a.Engine
@@ -273,7 +285,8 @@ collect:
 		out.Status = "no_relevant_results"
 		out.Notice = "未找到同时符合主题和时间要求的结果。请保留核心主题和年份换词重试，或放宽时间范围；不要用无关内容回答。"
 		if successful > 0 && successful < len(s.engines) {
-			out.Notice = "部分来源暂不可用，其余来源未返回符合主题和日期的结果。请保留主题/年份换词，或使用any后浏览原文核实时间。"
+			out.Status = "partial"
+			out.Notice = "搜索不完整：部分来源被限流、要求验证或暂不可用，其余来源没有匹配结果；这不表示资料不存在。查看 attempts 区分来源故障、主题不符和日期过滤；不要连续重复相同检索。"
 		}
 		if successful == 0 {
 			out.Status = "unavailable"
@@ -312,4 +325,28 @@ func clip(s string, max int) string {
 		return string(r[:max])
 	}
 	return s
+}
+
+// Respect upstream throttling/challenges instead of hammering a blocked source
+// across consecutive model tool rounds. Other engines remain independent.
+func (s *Search) runEngine(ctx context.Context, engine searchEngine, q string, o SearchOptions) ([]SearchResult, error) {
+	s.mu.Lock()
+	until := s.cooldown[engine.name]
+	s.mu.Unlock()
+	if s.now().Before(until) {
+		return nil, errors.New("source cooling down after rate limit or verification; use another source")
+	}
+	results, err := engine.run(ctx, q, o)
+	if err != nil && ctx.Err() == nil {
+		message := err.Error()
+		if strings.Contains(message, "HTTP 202") || strings.Contains(message, "HTTP 429") || strings.Contains(message, "verification required") {
+			s.mu.Lock()
+			if s.cooldown == nil {
+				s.cooldown = map[string]time.Time{}
+			}
+			s.cooldown[engine.name] = s.now().Add(2 * time.Minute)
+			s.mu.Unlock()
+		}
+	}
+	return results, err
 }

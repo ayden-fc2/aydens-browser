@@ -20,7 +20,7 @@ export async function setReadingMode(session,enabled) {
   if(enabled&&!session.scriptControl)session.scriptControl=await session.page.context().newCDPSession(session.page);
   if(session.scriptControl)await session.scriptControl.send('Emulation.setScriptExecutionDisabled',{value:enabled});
 }
-export async function navigate(session,target,{commitMs=15000,domMs=2500}={}) {
+export async function navigate(session,target,{commitMs=15000,domMs=2500,renderMs=2500}={}) {
   const page=session.page;
   await setReadingMode(session,false);session.loadState=undefined;session.refs=new Set();
   let response=await page.goto(target,{waitUntil:'commit',timeout:commitMs});
@@ -43,7 +43,16 @@ export async function navigate(session,target,{commitMs=15000,domMs=2500}={}) {
     finally{if(reuse)await page.unroute(url,replay);}
     checkResponse(response);loaded=await settle(page,domMs);
   }
-  if(!(await bodyText(page)).trim())throw new BrowserError(422,'Document has no readable body; choose another source',{code:'empty_document',retryable:false});
+  // DOMContentLoaded does not mean client-rendered article text is available.
+  if(!(await bodyText(page)).trim()) {
+    await page.waitForFunction(()=>document.body?.innerText?.trim(),null,{timeout:renderMs}).catch(e=>{if(e.name!=='TimeoutError')throw e;});
+  }
+  const text=await bodyText(page);
+  if(isChallengePage({title:await page.title(),text}))throw new BrowserError(422,'Site requires verification; choose another source',{code:'verification_required',retryable:false});
+  if(new URL(page.url()).hostname==='news.google.com' && (!text || /redirect notice|invalid web address|重定向通知/i.test(text))) {
+    throw new BrowserError(422,'Google News link did not resolve to the publisher. Search the article title and publisher to obtain a direct source URL.',{code:'news_redirect_unresolved',retryable:false});
+  }
+  if(!text)throw new BrowserError(422,'Document has no readable body; search its title for another source',{code:'empty_document',retryable:false});
   session.loadState=loaded?'dom_ready':'partial';
   return response;
 }
